@@ -1,54 +1,98 @@
 # MuJoCo Terrain Editor
 
-纯前端 MuJoCo 地形编辑器。通过 Web 3D 界面组合方块、圆柱、斜坡、楼梯和平台，并导出可直接加载的 MJCF XML。
+[English](README.md) | [简体中文](README-zh.md)
 
-## 启动
+A browser-based 3D terrain editor for MuJoCo. Build simulation environments from boxes, cylinders, ramps, stairs, and platforms, then export them as ready-to-load MJCF XML.
+
+The editor runs entirely in the browser and provides interactive transforms, precise parameter controls, scene persistence through MJCF import/export, and a bilingual light/dark interface.
+
+## Features
+
+- Compose terrain visually with reusable box, cylinder, ramp, stair, and platform primitives.
+- Move and rotate objects with 3D transform gizmos or edit their values precisely in the properties panel.
+- Select and move multiple objects as a group.
+- Keep objects automatically grounded at `Z = 0`, or disable ground locking for unrestricted vertical placement.
+- Customize MJCF-compatible geom names and terrain colors.
+- Undo, redo, duplicate, and delete objects with toolbar actions or keyboard shortcuts.
+- Export the scene as standalone MJCF XML and import it later for continued editing.
+- Save changes directly back to an opened XML file in browsers that support the File System Access API.
+- Switch between English and Chinese interfaces and light or dark themes.
+
+## Getting Started
+
+Install the dependencies and start the Vite development server:
 
 ```bash
 npm install
 npm run dev
 ```
 
-生产构建：
+Create a production build:
 
 ```bash
 npm run build
 ```
 
-## 使用方法
+Preview the production build locally:
 
-1. 从左侧组件库拖拽地形到视口；双击组件可添加到原点。
-2. 点击地形后，使用顶部工具移动或旋转；右侧面板可精确编辑尺寸和变换。顶部可切换中英文和浅色/深色主题，默认中文浅色界面。
-3. 默认启用“自动贴地”，地形底面会保持在 `Z = 0`；取消勾选后可自由编辑高度。
-4. 编辑 `Geom 名称`，该名称会直接用于导出的 MJCF `<geom name="...">`。
-5. 点击“导出 XML”会下载带时间戳的文件，例如 `terrain_08_06-21_21_.xml`；之后可通过顶部“加载 XML”，或将 XML 文件拖入编辑器任意位置，恢复场景并继续编辑。导入文件后顶部会显示“保存”按钮，可在浏览器授予写入权限后直接覆盖原文件；载入新文件前会保护尚未导出或保存的修改。直接覆盖需要 Edge/Chrome 等支持本地文件访问 API 的浏览器。
+```bash
+npm run preview
+```
 
-视口操作：左键旋转相机或拖拽变换手柄，右键平移，中键或滚轮缩放。
+## Usage
 
-复制可使用右侧“复制元素”按钮或顶部复制按钮；快捷键为 `Ctrl+D`（macOS 为 `Cmd+D`）。
+1. Drag a terrain primitive from the left sidebar into the viewport. Double-clicking a primitive adds it at the origin.
+2. Select an object and use the toolbar to switch between move and rotate modes. Use the properties panel for exact dimensions and transforms.
+3. Leave **Ground Lock** enabled to keep the bottom of the object on `Z = 0`, or disable it to edit the height freely.
+4. Set the **Geom Name** used for the exported MJCF `<geom name="...">` attribute.
+5. Select **Export XML** to download a timestamped file such as `terrain_08_06-21_21_.xml`.
+6. Use **Load XML**, or drag an XML file anywhere onto the editor, to restore a scene and continue editing it. After loading a file, supported browsers expose a **Save** action that can overwrite the original file after permission is granted.
 
-撤回与反撤回：`Ctrl/Cmd+Z` 撤回，`Ctrl/Cmd+Shift+Z` 或 `Ctrl/Cmd+Y` 反撤回。
+The editor protects unsaved changes before loading another file. Direct file saving requires a browser with File System Access API support, such as a current Chromium-based version of Chrome or Edge.
 
-其他快捷键：`W` 移动、`E` 旋转、`Shift/Ctrl/Cmd + 点击` 增选或取消选择、`Shift+[` / `Shift+]` 绕 Z 轴左转/右转 90°、`Delete` 删除、`Esc` 取消选择。多选物体可通过公共移动手柄整体移动。
+### Viewport Controls
 
-## 编辑约定
+- Left drag: orbit the camera, or manipulate the active transform gizmo.
+- Right drag: pan the camera.
+- Middle drag or mouse wheel: zoom.
+- `Shift` / `Ctrl` / `Cmd` + click: add or remove an object from the current selection.
 
-- 场景、变换手柄和右下角坐标指示器统一使用 Z-up 右手坐标系，长度单位为米，角度单位为度。
-- 变换步长：移动 0.05 m、旋转 1°。
-- 移动手柄使用世界坐标；旋转手柄使用元素局部坐标。多选状态当前仅支持整体移动。
-- 名称仅使用 ASCII 字母、数字、下划线、连字符和点，以保证 MJCF 兼容性。
+### Keyboard Shortcuts
 
-## 地形参数
+| Action | Shortcut |
+| --- | --- |
+| Move mode | `W` |
+| Rotate mode | `E` |
+| Duplicate | `Ctrl+D` / `Cmd+D` |
+| Undo | `Ctrl+Z` / `Cmd+Z` |
+| Redo | `Ctrl+Shift+Z`, `Cmd+Shift+Z`, or `Ctrl/Cmd+Y` |
+| Rotate 90° counterclockwise around Z | `Shift+[` |
+| Rotate 90° clockwise around Z | `Shift+]` |
+| Delete selection | `Delete` |
+| Clear selection | `Esc` |
 
-- 圆柱：半径、高度。
-- 斜坡：坡面宽度、水平长度、坡度。
-- 楼梯：踏步宽度、踏步长度、踏步高度、级数；默认沿 X 轴正方向逐级升高。
-- 平台：平台宽度、长度、高度。
+## Editor Conventions
 
-默认尺寸和新地形类型统一定义在 [`src/data/presets.js`](src/data/presets.js)。修改参数的 `default` 即可更新默认尺寸；新增地形时添加一个 `defineTerrainPreset` 配置，组件库、属性面板、自动贴地和 XML 导出会自动接入。
+- The scene, transform gizmos, and coordinate indicator use a right-handed, Z-up coordinate system.
+- Lengths are expressed in meters and angles in degrees.
+- Translation snaps in increments of `0.05 m`; rotation snaps in increments of `1°`.
+- Translation gizmos operate in world space, while rotation gizmos operate in the selected object's local space.
+- Multi-selection currently supports group translation only.
+- MJCF names are restricted to ASCII letters, digits, underscores, hyphens, and periods.
 
-编辑器级吸附步长和手柄尺寸集中定义在 [`src/editorConfig.js`](src/editorConfig.js)。
+## Terrain Parameters
 
-## TODO
+- **Box:** width, depth, and height.
+- **Cylinder:** radius and height.
+- **Ramp:** surface width, horizontal length, and slope angle.
+- **Stairs:** step width, step length, step height, and step count. Stairs rise along the positive X axis by default.
+- **Platform:** width, depth, and height.
 
-- 支持为地形表面添加可配置的 Perlin noise，包括振幅、频率和随机种子，并在 MJCF 中导出为可加载的高度场或网格。
+Default dimensions and terrain definitions are centralized in [`src/data/presets.js`](src/data/presets.js). Change a parameter's `default` value to update its initial dimensions. To introduce a new terrain type, add a `defineTerrainPreset` configuration; the component library, properties panel, ground-lock behavior, and XML exporter will use it automatically.
+
+Editor-wide snapping increments and gizmo sizes are defined in [`src/editorConfig.js`](src/editorConfig.js).
+
+## Roadmap
+
+- [ ] Add configurable Perlin noise for terrain surfaces, including amplitude, frequency, and random seed controls, with MJCF export as a loadable height field or mesh.
+- [ ] Deploy on Github Page.
