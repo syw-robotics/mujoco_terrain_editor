@@ -18,8 +18,14 @@ export function defineTerrainPreset(config) {
   }
 
   const keys = new Set();
+  if (!config.label.zh || !config.label.en) {
+    throw new Error(`Terrain preset "${config.type}" needs zh and en labels`);
+  }
   for (const parameter of config.parameters) {
     if (!parameter.key) throw new Error(`Terrain preset "${config.type}" has a parameter without a key`);
+    if (!parameter.label?.zh || !parameter.label?.en) {
+      throw new Error(`Terrain preset "${config.type}" parameter "${parameter.key}" needs zh and en labels`);
+    }
     if (keys.has(parameter.key)) throw new Error(`Terrain preset "${config.type}" has duplicate parameter "${parameter.key}"`);
     if (!Number.isFinite(parameter.default)) {
       throw new Error(`Terrain preset "${config.type}" parameter "${parameter.key}" needs a numeric default`);
@@ -43,6 +49,5 @@ export function defineTerrainPreset(config) {
   return {
     ...config,
     defaultParams,
-    summary: config.getSummary(defaultParams),
   };
 }

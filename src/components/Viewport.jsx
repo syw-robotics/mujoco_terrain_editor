@@ -1,4 +1,4 @@
-import { Suspense, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { GizmoHelper, GizmoViewport, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,21 +6,27 @@ import GroundPlane from './GroundPlane';
 import TerrainElement from './TerrainElement';
 import TransformGizmo from './TransformGizmo';
 import useSceneStore from '../store/useSceneStore';
+import { translate } from '../i18n';
 
-function Scene() {
+function Scene({ showOriginAxes }) {
   const elements = useSceneStore((state) => state.elements);
-  const selectedId = useSceneStore((state) => state.selectedId);
-  const selected = elements.find((element) => element.id === selectedId);
+  const selectedIds = useSceneStore((state) => state.selectedIds);
+  const selectedSet = new Set(selectedIds);
+  const selectedElements = selectedIds
+    .map((id) => elements.find((element) => element.id === id))
+    .filter(Boolean);
+  const theme = useSceneStore((state) => state.theme);
+  const dark = theme === 'dark';
 
   return (
     <>
-      <color attach="background" args={['#101412']} />
-      <fog attach="fog" args={['#101412', 19, 42]} />
-      <ambientLight intensity={0.65} />
-      <hemisphereLight args={['#dceee4', '#141712', 0.65]} />
+      <color attach="background" args={[dark ? '#08111f' : '#e9f0f7']} />
+      <fog attach="fog" args={[dark ? '#08111f' : '#e9f0f7', 19, 42]} />
+      <ambientLight intensity={dark ? 0.7 : 1.05} />
+      <hemisphereLight args={[dark ? '#c9dcff' : '#ffffff', dark ? '#101827' : '#b8c5d3', dark ? 0.7 : 1.1]} />
       <directionalLight
         position={[-7, -9, 14]}
-        intensity={2.2}
+        intensity={dark ? 2.2 : 2.6}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-14}
@@ -29,17 +35,26 @@ function Scene() {
         shadow-camera-bottom={-14}
       />
       <GroundPlane />
-      {elements.filter((element) => element.id !== selectedId).map((element) => (
+      {showOriginAxes && <axesHelper args={[1.5]} position={[0, 0, 0.008]} />}
+      {elements.filter((element) => !selectedSet.has(element.id)).map((element) => (
         <TerrainElement key={element.id} element={element} />
       ))}
-      {selected && <TransformGizmo key={selected.id} element={selected} />}
-      <OrbitControls makeDefault target={[0, 0, 0.5]} minDistance={2} maxDistance={42} />
+      {selectedElements.length > 0 && (
+        <TransformGizmo key={selectedIds.join(':')} elements={selectedElements} />
+      )}
+      <OrbitControls
+        makeDefault
+        target={[0, 0, 0.5]}
+        minDistance={2}
+        maxDistance={42}
+        enableDamping={false}
+      />
       <GizmoHelper alignment="bottom-right" margin={[74, 74]}>
         <GizmoViewport
           hideNegativeAxes
-          scale={[40, -40, 40]}
+          scale={40}
           axisColors={['#f06460', '#6fc66f', '#638fe3']}
-          labelColor="white"
+          labelColor={dark ? 'white' : '#172033'}
         />
       </GizmoHelper>
     </>
@@ -51,6 +66,31 @@ function Viewport() {
   const cameraRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const addElement = useSceneStore((state) => state.addElement);
+  const elementCount = useSceneStore((state) => state.elements.length);
+  const sourceFileName = useSceneStore((state) => state.sourceFileName);
+  const language = useSceneStore((state) => state.language);
+  const colorPickTargetId = useSceneStore((state) => state.colorPickTargetId);
+  const [showShortcutGuide, setShowShortcutGuide] = useState(
+    () => elementCount === 0 && !sourceFileName,
+  );
+  const t = (key) => translate(language, key);
+
+  useEffect(() => {
+    if (elementCount > 0 || sourceFileName) setShowShortcutGuide(false);
+  }, [elementCount, sourceFileName]);
+
+  const shortcuts = [
+    ['W', t('move')],
+    ['E', t('rotate')],
+    ['Ctrl/Cmd + Z', t('undo')],
+    ['Ctrl/Cmd + Shift + Z', t('redo')],
+    ['Ctrl/Cmd + Y', t('redo')],
+    ['Ctrl/Cmd + D', t('duplicateElement')],
+    ['Delete', t('deleteElement')],
+    ['Shift + [ / ]', t('rotate90')],
+    ['Shift/Ctrl/Cmd + Click', t('multiSelect')],
+    ['Esc', t('deselect')],
+  ];
 
   const handleDrop = (event) => {
     event.preventDefault();
@@ -61,6 +101,8 @@ function Viewport() {
     const container = containerRef.current;
     if (!type || !camera || !container) return;
 
+    // Convert the browser pointer to normalized device coordinates, then
+    // intersect its camera ray with the Z=0 editing plane.
     const rect = container.getBoundingClientRect();
     const pointer = new THREE.Vector2(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -78,7 +120,8 @@ function Viewport() {
   return (
     <section
       ref={containerRef}
-      className={`viewport ${dragActive ? 'drag-active' : ''}`}
+      className={`viewport ${dragActive ? 'drag-active' : ''} ${colorPickTargetId ? 'color-picking' : ''}`}
+      data-drop-label={translate(language, 'dropTerrain')}
       onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }}
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }}
       onDragLeave={(event) => {
@@ -97,10 +140,34 @@ function Viewport() {
           gl.outputColorSpace = THREE.SRGBColorSpace;
         }}
       >
-        <Suspense fallback={null}><Scene /></Suspense>
+        <Suspense fallback={null}><Scene showOriginAxes={!showShortcutGuide} /></Suspense>
       </Canvas>
+      {colorPickTargetId && (
+        <div className="color-pick-hint" role="status">
+          <span className="color-pick-dot" />
+          {t('pickColorHint')}
+          <kbd>Esc</kbd>
+        </div>
+      )}
+      {showShortcutGuide && (
+        <div className="shortcut-guide" role="status">
+          <div className="shortcut-guide-card">
+            <div className="shortcut-guide-heading">
+              <strong>{t('shortcutGuideTitle')}</strong>
+            </div>
+            <div className="shortcut-guide-grid">
+              {shortcuts.map(([keys, label]) => (
+                <div className="shortcut-guide-item" key={keys}>
+                  <kbd>{keys}</kbd>
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="viewport-badge">
-        Z-UP · GRID 1.0 M &nbsp; <span className="axis-key"><b>X</b> <b>Y</b> <b>Z</b></span>
+        Z-UP · RIGHT-HANDED · GRID 1.0 M &nbsp; <span className="axis-key"><b>X</b> <b>Y</b> <b>Z</b></span>
       </div>
     </section>
   );

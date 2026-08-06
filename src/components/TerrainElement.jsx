@@ -5,6 +5,10 @@ import useSceneStore from '../store/useSceneStore';
 
 const TerrainElement = forwardRef(function TerrainElement({ element, selected = false }, ref) {
   const selectElement = useSceneStore((state) => state.selectElement);
+  const colorPickTargetId = useSceneStore((state) => state.colorPickTargetId);
+  const applyColorFromElement = useSceneStore((state) => state.applyColorFromElement);
+  const theme = useSceneStore((state) => state.theme);
+  const dark = theme === 'dark';
   const preset = getPreset(element.type);
   if (!preset) return null;
 
@@ -17,23 +21,30 @@ const TerrainElement = forwardRef(function TerrainElement({ element, selected = 
         <mesh
           key={`${element.id}-${index}`}
           position={geometry.position}
-          rotation={geometry.rotation || [0, 0, 0]}
+          rotation={geometry.shape === 'cylinder' ? [Math.PI / 2, 0, 0] : (geometry.rotation || [0, 0, 0])}
           castShadow
           receiveShadow
           onClick={(event) => {
             event.stopPropagation();
-            selectElement(element.id);
+            if (colorPickTargetId) applyColorFromElement(element.id);
+            else selectElement(element.id, event.shiftKey || event.ctrlKey || event.metaKey);
           }}
         >
-          <boxGeometry args={geometry.args} />
+          {geometry.shape === 'cylinder' ? (
+            <cylinderGeometry args={[geometry.args[0], geometry.args[0], geometry.args[1], 48]} />
+          ) : (
+            <boxGeometry args={geometry.args} />
+          )}
           <meshStandardMaterial
-            color={selected ? '#d7ff45' : element.color}
+            color={element.color}
+            emissive={selected ? (dark ? '#60a5fa' : '#2563eb') : '#000000'}
+            emissiveIntensity={selected ? 0.12 : 0}
             roughness={0.72}
             metalness={0.04}
           />
           <Edges
             threshold={15}
-            color={selected ? '#efffaf' : '#56615b'}
+            color={selected ? (dark ? '#bfdbfe' : '#123f9c') : (dark ? '#64748b' : '#6f8194')}
             opacity={selected ? 1 : 0.42}
             transparent
           />

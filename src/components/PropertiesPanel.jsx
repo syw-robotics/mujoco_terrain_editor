@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { BoxSelect, Trash2 } from 'lucide-react';
+import { BoxSelect, Copy, Dices, Pipette, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { getPreset } from '../data/presets';
 import useSceneStore from '../store/useSceneStore';
-import { sanitizeXmlName, sanitizeXmlNameDraft } from '../utils/xmlNames.js';
+import { makeUniqueXmlName, sanitizeXmlNameDraft } from '../utils/xmlNames.js';
+import { localize, translate } from '../i18n';
+import { ROTATION_SNAP_DEGREES, TRANSLATION_SNAP } from '../editorConfig';
+import { randomTerrainColor } from '../utils/terrainColors.js';
 
 const AXES = ['X', 'Y', 'Z'];
 
@@ -12,8 +15,11 @@ function formatNumber(value) {
 }
 
 function NumericInput({ value, onChange, step = 0.1, min, max, integer = false, axis, disabled = false }) {
+  // Keep a textual draft separate from the numeric store value so users can
+  // temporarily type incomplete values such as "-" or "0." without resets.
   const [draft, setDraft] = useState(() => formatNumber(value));
   const focusedRef = useRef(false);
+  const cancelBlurRef = useRef(false);
 
   useEffect(() => {
     if (!focusedRef.current) setDraft(formatNumber(value));
@@ -50,6 +56,7 @@ function NumericInput({ value, onChange, step = 0.1, min, max, integer = false, 
     if (event.key === 'Enter') event.currentTarget.blur();
     if (event.key === 'Escape') {
       setDraft(formatNumber(value));
+      cancelBlurRef.current = true;
       event.currentTarget.blur();
     }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -70,10 +77,16 @@ function NumericInput({ value, onChange, step = 0.1, min, max, integer = false, 
         inputMode={integer ? 'numeric' : 'decimal'}
         value={draft}
         disabled={disabled}
-        onFocus={() => { focusedRef.current = true; }}
+        onFocus={() => {
+          focusedRef.current = true;
+          cancelBlurRef.current = false;
+          useSceneStore.getState().beginHistoryTransaction();
+        }}
         onBlur={(event) => {
           focusedRef.current = false;
-          commit(event.currentTarget.value);
+          if (!cancelBlurRef.current) commit(event.currentTarget.value);
+          cancelBlurRef.current = false;
+          useSceneStore.getState().endHistoryTransaction();
         }}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -130,16 +143,23 @@ function PropertiesPanel() {
   const selectedId = useSceneStore((state) => state.selectedId);
   const updateElement = useSceneStore((state) => state.updateElement);
   const removeElement = useSceneStore((state) => state.removeElement);
+  const duplicateElement = useSceneStore((state) => state.duplicateElement);
+  const rotateElement90 = useSceneStore((state) => state.rotateElement90);
+  const colorPickTargetId = useSceneStore((state) => state.colorPickTargetId);
+  const startColorPicking = useSceneStore((state) => state.startColorPicking);
+  const cancelColorPicking = useSceneStore((state) => state.cancelColorPicking);
+  const language = useSceneStore((state) => state.language);
+  const t = (key, variables) => translate(language, key, variables);
   const element = elements.find((item) => item.id === selectedId);
 
   if (!element) {
     return (
       <aside className="panel properties">
-        <div className="panel-header"><h2 className="panel-title">检查器</h2></div>
+        <div className="panel-header"><h2 className="panel-title">{t('inspector')}</h2></div>
         <div className="property-empty">
           <BoxSelect size={31} strokeWidth={1.25} />
-          <strong>未选择地形元素</strong>
-          <p>点击视口中的对象或场景层级<br />以编辑几何和变换属性</p>
+          <strong>{t('noSelection')}</strong>
+          <p>{t('noSelectionHint')}</p>
         </div>
       </aside>
     );
@@ -149,32 +169,39 @@ function PropertiesPanel() {
   const Icon = preset.Icon;
   const patch = (field, value) => updateElement(element.id, { [field]: value });
   const updateParam = (key, value) => patch('params', { ...element.params, [key]: value });
+  const commitName = (value) => {
+    const otherNames = elements.filter((item) => item.id !== element.id).map((item) => item.name);
+    patch('name', makeUniqueXmlName(value, otherNames, preset.xmlName));
+  };
 
   return (
     <aside className="panel properties">
       <div className="panel-header">
-        <h2 className="panel-title">检查器</h2>
-        <span className="panel-count">{element.id}</span>
+        <h2 className="panel-title">{t('inspector')}</h2>
       </div>
       <section className="section">
         <div className="field">
-          <div className="field-label"><span>Geom 名称</span><code>MJCF</code></div>
+          <div className="field-label"><span>{t('geomName')}</span><code>MJCF</code></div>
           <input
             className="text-input"
             value={element.name}
             maxLength={64}
             spellCheck={false}
+            onFocus={() => useSceneStore.getState().beginHistoryTransaction()}
             onChange={(event) => patch('name', sanitizeXmlNameDraft(event.target.value))}
-            onBlur={(event) => patch('name', sanitizeXmlName(event.target.value, preset.xmlName))}
+            onBlur={(event) => {
+              commitName(event.target.value);
+              useSceneStore.getState().endHistoryTransaction();
+            }}
           />
         </div>
         <div className="type-chip">
           <span className="type-chip-icon"><Icon size={14} /></span>
-          {preset.label}
+          {localize(preset.label, language)}
         </div>
       </section>
       <section className="section">
-        <p className="section-label">变换</p>
+        <p className="section-label">{t('transform')}</p>
         <label className="ground-lock">
           <input
             type="checkbox"
@@ -183,42 +210,93 @@ function PropertiesPanel() {
           />
           <span className="ground-lock-box" />
           <span>
-            <strong>自动贴地</strong>
-            <small>锁定地形底面到 Z = 0</small>
+            <strong>{t('groundLock')}</strong>
+            <small>{t('groundLockHint')}</small>
           </span>
         </label>
         <VectorInput
-          label="位置"
-          hint={element.groundLocked ? 'Z AUTO' : 'M · 0.05'}
+          label={t('position')}
+          hint={element.groundLocked ? 'Z AUTO' : `M · ${TRANSLATION_SNAP}`}
           value={element.position}
-          step={0.05}
+          step={TRANSLATION_SNAP}
           disabledIndices={element.groundLocked ? [2] : []}
           onChange={(value) => patch('position', value)}
         />
-        <VectorInput label="旋转" hint="DEG · 1" value={element.rotation} step={1} onChange={(value) => patch('rotation', value)} />
-        <VectorInput label="缩放" hint="× · 0.1" value={element.scale} step={0.1} min={0.1} onChange={(value) => patch('scale', value)} />
+        <VectorInput
+          label={t('rotation')}
+          hint={`DEG · ${ROTATION_SNAP_DEGREES}`}
+          value={element.rotation}
+          step={ROTATION_SNAP_DEGREES}
+          onChange={(value) => patch('rotation', value)}
+        />
+        <div className="quick-rotate-row">
+          <button
+            onClick={() => rotateElement90(element.id, 1)}
+            title={`${t('rotateLeft90')} (Shift+[)`}
+          >
+            <RotateCcw size={14} /> {t('rotateLeft90')}
+          </button>
+          <button
+            onClick={() => rotateElement90(element.id, -1)}
+            title={`${t('rotateRight90')} (Shift+])`}
+          >
+            <RotateCw size={14} /> {t('rotateRight90')}
+          </button>
+        </div>
       </section>
       <section className="section">
-        <p className="section-label">几何参数</p>
+        <p className="section-label">{t('geometryParameters')}</p>
         {preset.parameters.map((parameter) => (
           <ParameterInput
             key={parameter.key}
             {...parameter}
+            label={localize(parameter.label, language)}
             value={element.params[parameter.key]}
             onChange={(next) => updateParam(parameter.key, next)}
           />
         ))}
         <div className="field" style={{ marginBottom: 0 }}>
-          <div className="field-label"><span>显示颜色</span></div>
-          <div className="color-control">
-            <input type="color" value={element.color} onChange={(event) => patch('color', event.target.value)} />
-            <code>{element.color.toUpperCase()}</code>
+          <div className="field-label"><span>{t('displayColor')}</span></div>
+          <div className="color-row">
+            <div className="color-control">
+              <input
+                type="color"
+                value={element.color}
+                onFocus={() => useSceneStore.getState().beginHistoryTransaction()}
+                onBlur={() => useSceneStore.getState().endHistoryTransaction()}
+                onChange={(event) => patch('color', event.target.value)}
+              />
+              <code>{element.color.toUpperCase()}</code>
+            </div>
+            <button
+              className="random-color-btn"
+              onClick={() => patch('color', randomTerrainColor(element.color))}
+              title={t('randomColor')}
+              aria-label={t('randomColor')}
+            >
+              <Dices size={15} /> {t('randomColor')}
+            </button>
+            <button
+              className={`random-color-btn ${colorPickTargetId === element.id ? 'active' : ''}`}
+              disabled={elements.length < 2}
+              onClick={() => {
+                if (colorPickTargetId === element.id) cancelColorPicking();
+                else startColorPicking(element.id);
+              }}
+              title={colorPickTargetId === element.id ? t('cancelColorPick') : t('pickColorHint')}
+              aria-pressed={colorPickTargetId === element.id}
+            >
+              <Pipette size={15} /> {t('pickColor')}
+            </button>
           </div>
         </div>
       </section>
       <section className="section">
+        <button className="secondary-btn" onClick={() => duplicateElement(element.id)}>
+          <Copy size={14} /> {t('duplicateElement')}
+        </button>
         <button className="danger-btn" onClick={() => removeElement(element.id)}>
-          <Trash2 size={14} /> 删除元素
+          <Trash2 size={14} /> {t('deleteElement')}
         </button>
       </section>
     </aside>

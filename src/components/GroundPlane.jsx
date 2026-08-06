@@ -3,6 +3,9 @@ import useSceneStore from '../store/useSceneStore';
 
 function GroundPlane() {
   const selectElement = useSceneStore((state) => state.selectElement);
+  const cancelColorPicking = useSceneStore((state) => state.cancelColorPicking);
+  const theme = useSceneStore((state) => state.theme);
+  const dark = theme === 'dark';
   return (
     <>
       <mesh
@@ -11,11 +14,15 @@ function GroundPlane() {
         onClick={(event) => {
           event.stopPropagation();
           if (useSceneStore.getState().isTransforming) return;
+          if (useSceneStore.getState().colorPickTargetId) {
+            cancelColorPicking();
+            return;
+          }
           selectElement(null);
         }}
       >
         <boxGeometry args={[60, 60, 0.1]} />
-        <meshStandardMaterial color="#151a17" roughness={0.92} metalness={0.02} />
+        <meshStandardMaterial color={dark ? '#0d1828' : '#e5edf5'} roughness={0.92} metalness={0.02} />
       </mesh>
       <Grid
         args={[60, 60]}
@@ -23,10 +30,10 @@ function GroundPlane() {
         position={[0, 0, 0.002]}
         cellSize={1}
         cellThickness={0.45}
-        cellColor="#39433e"
+        cellColor={dark ? '#33445d' : '#aebdcb'}
         sectionSize={5}
         sectionThickness={0.8}
-        sectionColor="#5c6962"
+        sectionColor={dark ? '#58708f' : '#71869b'}
         fadeDistance={32}
         fadeStrength={1.1}
         infiniteGrid

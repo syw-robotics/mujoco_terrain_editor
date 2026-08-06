@@ -17,3 +17,14 @@ export function sanitizeXmlNameDraft(value) {
     .replace(/[^A-Za-z0-9_.-]+/g, '_')
     .replace(/_+/g, '_');
 }
+
+/** Return a valid MJCF name that does not collide with the supplied names. */
+export function makeUniqueXmlName(value, existingNames, fallback = 'terrain') {
+  const base = sanitizeXmlName(value, fallback);
+  const used = existingNames instanceof Set ? existingNames : new Set(existingNames);
+  if (!used.has(base)) return base;
+
+  let suffix = 2;
+  while (used.has(`${base}_${suffix}`)) suffix += 1;
+  return `${base}_${suffix}`;
+}
