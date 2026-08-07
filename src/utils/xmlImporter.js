@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { getGroundOffset } from './grounding.js';
 
 const METADATA_PREFIX = 'MTE_DATA ';
@@ -17,6 +18,40 @@ function rgbaToHex(value) {
     const byte = Math.round(Math.min(1, Math.max(0, channel)) * 255);
     return byte.toString(16).padStart(2, '0');
   }).join('')}`;
+}
+
+function nodeRotation(node) {
+  const quaternion = numberList(node.getAttribute('quat'), [1, 0, 0, 0]);
+  if (node.hasAttribute('quat')) {
+    const euler = new THREE.Euler().setFromQuaternion(
+      new THREE.Quaternion(quaternion[1], quaternion[2], quaternion[3], quaternion[0]).normalize(),
+    );
+    return radiansToDegrees(euler.toArray().slice(0, 3));
+  }
+  return radiansToDegrees(numberList(node.getAttribute('euler'), [0, 0, 0]));
+}
+
+function inferFlatGeom(geom) {
+  const geomType = geom.getAttribute('type') || 'box';
+  if (geomType !== 'box' && geomType !== 'cylinder') return null;
+
+  const size = geomType === 'cylinder'
+    ? numberList(geom.getAttribute('size'), [0.5, 0.5])
+    : numberList(geom.getAttribute('size'), [0.5, 0.5, 0.5]);
+  const element = {
+    type: geomType === 'cylinder' ? 'cylinder' : 'box',
+    name: geom.getAttribute('name') || 'Terrain',
+    position: numberList(geom.getAttribute('pos'), [0, 0, 0]),
+    rotation: nodeRotation(geom),
+    scale: [1, 1, 1],
+    groundLocked: false,
+    color: rgbaToHex(geom.getAttribute('rgba')),
+    params: geomType === 'cylinder'
+      ? { radius: size[0], height: size[1] * 2 }
+      : { width: size[0] * 2, depth: size[1] * 2, height: size[2] * 2 },
+  };
+  element.groundLocked = Math.abs(element.position[2] - getGroundOffset(element)) < 1e-4;
+  return element;
 }
 
 function inferLegacyElement(body) {
@@ -110,13 +145,17 @@ export function importFromXML(xmlText) {
       }
       continue;
     }
-    if (node.nodeType !== Node.ELEMENT_NODE || node.tagName !== 'body') continue;
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
     const metadataElement = pendingMetadata?.version === 1 ? pendingMetadata.element : null;
-    const element = metadataElement || inferLegacyElement(node);
+    const element = node.tagName === 'body'
+      ? metadataElement || inferLegacyElement(node)
+      : node.tagName === 'geom' && node.getAttribute('type') !== 'plane'
+        ? inferFlatGeom(node)
+        : null;
     if (element) elements.push(element);
     pendingMetadata = null;
   }
 
-  if (!elements.length) throw new Error('No editable terrain bodies found');
+  if (!elements.length) throw new Error('No editable terrain geoms found');
   return elements;
 }

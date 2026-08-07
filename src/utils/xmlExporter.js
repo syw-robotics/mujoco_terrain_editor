@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { getPreset } from '../data/presets.js';
 import { sanitizeXmlName } from './xmlNames.js';
 
@@ -24,77 +25,57 @@ function hexToRgba(hex) {
   return [1, 3, 5].map((offset) => round(parseInt(safe.slice(offset, offset + 2), 16) / 255)).join(' ') + ' 1';
 }
 
-function editorMetadata(element) {
-  const payload = encodeURIComponent(JSON.stringify({
-    version: 1,
-    element: {
-      type: element.type,
-      name: element.name,
-      position: element.position,
-      rotation: element.rotation,
-      scale: element.scale,
-      groundLocked: element.groundLocked,
-      color: element.color,
-      params: element.params,
-    },
-  })).replaceAll('-', '%2D');
-  return `    <!-- MTE_DATA ${payload} -->`;
-}
-
-function elementBody(element, elementIndex) {
+function elementGeoms(element, elementIndex) {
   const preset = getPreset(element.type);
   if (!preset) return '';
   const geometries = preset.toGeometries(element.params);
   const elementNumber = String(elementIndex + 1).padStart(3, '0');
   const namePrefix = sanitizeXmlName(element.name, `${preset.xmlName}_${elementNumber}`);
-  const bodyAttrs = attrs({
-    name: `${namePrefix}_body`,
-    pos: vector(element.position),
-    euler: vector(element.rotation.map((degree) => degree * Math.PI / 180)),
-  });
+  const elementQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+    ...element.rotation.map((degree) => degree * Math.PI / 180),
+  ));
   const geoms = geometries.map((geometry, index) => {
     // MuJoCo boxes use half-extents, while cylinders use radius and half-height.
-    // Element transforms live on the body; preset-local transforms stay on
-    // each geom so composite terrain matches the editor hierarchy.
+    // With no wrapper body, bake the element transform into every geom.
     const geomType = geometry.shape === 'cylinder' ? 'cylinder' : 'box';
     const size = geomType === 'cylinder'
       ? [geometry.args[0] * Math.max(element.scale[0], element.scale[1]), geometry.args[1] * element.scale[2] / 2]
       : geometry.args.map((length, axis) => length * element.scale[axis] / 2);
-    const position = geometry.position.map((value, axis) => value * element.scale[axis]);
-    const rotation = geometry.rotation || [0, 0, 0];
-    return `      <geom ${attrs({
+    const position = new THREE.Vector3(
+      ...geometry.position.map((value, axis) => value * element.scale[axis]),
+    ).applyQuaternion(elementQuaternion).add(new THREE.Vector3(...element.position));
+    const geometryQuaternion = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(...(geometry.rotation || [0, 0, 0])),
+    );
+    const quaternion = elementQuaternion.clone().multiply(geometryQuaternion).normalize();
+    const hasRotation = Math.abs(quaternion.x) > 1e-9
+      || Math.abs(quaternion.y) > 1e-9
+      || Math.abs(quaternion.z) > 1e-9
+      || Math.abs(quaternion.w - 1) > 1e-9;
+    return `    <geom ${attrs({
       name: geometries.length === 1 || index === 0
         ? namePrefix
         : `${namePrefix}_step_${String(index + 1).padStart(2, '0')}`,
       type: geomType,
       size: vector(size),
-      pos: vector(position),
-      euler: rotation.some((value) => value !== 0) ? vector(rotation) : undefined,
+      pos: vector(position.toArray()),
+      quat: hasRotation ? vector([quaternion.w, quaternion.x, quaternion.y, quaternion.z]) : undefined,
       rgba: hexToRgba(element.color),
       friction: '1 0.005 0.0001',
       condim: '3',
     })}/>`;
   }).join('\n');
-  return `${editorMetadata(element)}\n    <body ${bodyAttrs}>\n${geoms}\n    </body>`;
+  return geoms;
 }
 
 export function exportToXML(elements) {
-  const terrain = elements.map(elementBody).filter(Boolean).join('\n');
+  const terrain = elements.map(elementGeoms).filter(Boolean).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <mujoco model="terrain">
   <compiler angle="radian" coordinate="local"/>
   <option timestep="0.002" gravity="0 0 -9.81"/>
-  <visual>
-    <headlight ambient="0.35 0.35 0.35" diffuse="0.7 0.7 0.7" specular="0.2 0.2 0.2"/>
-    <rgba haze="0.12 0.15 0.13 1"/>
-  </visual>
-  <asset>
-    <texture name="ground_tex" type="2d" builtin="checker" rgb1="0.16 0.18 0.17" rgb2="0.12 0.14 0.13" width="256" height="256"/>
-    <material name="ground_mat" texture="ground_tex" texrepeat="12 12" reflectance="0.05"/>
-  </asset>
   <worldbody>
-    <light name="key" pos="-6 -8 12" dir="0.35 0.45 -1" diffuse="0.8 0.82 0.8"/>
-    <geom name="ground" type="plane" size="30 30 0.1" material="ground_mat" friction="1 0.005 0.0001" condim="3"/>
+    <geom name="ground" type="plane" size="30 30 0.1" friction="1 0.005 0.0001" condim="3"/>
 ${terrain}
   </worldbody>
 </mujoco>
