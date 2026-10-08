@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import TerrainElement from './TerrainElement';
 import useSceneStore from '../store/useSceneStore';
+import { paletteFor } from '../../ui/scenePalette.js';
 import { GIZMO_SIZE, ROTATION_SNAP_DEGREES, TRANSLATION_SNAP } from '../editorConfig';
 
 const ROTATION_SNAP = THREE.MathUtils.degToRad(ROTATION_SNAP_DEGREES);
@@ -305,7 +306,7 @@ function TransformGizmo({ elements }) {
         <TranslationMarker
           objectRef={objectRef}
           showZ={!groundConstrained}
-          accent={theme === 'dark' ? '#60a5fa' : '#2563eb'}
+          accent={paletteFor(theme).accent}
         />
       )}
       <TransformControls

@@ -123,20 +123,42 @@ function inferLegacyElement(body) {
   return element;
 }
 
+function isTerrainContainer(node) {
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  if (node.tagName === 'worldbody') return true;
+  if (node.tagName !== 'body') return false;
+  return Array.from(node.childNodes).some((child) => (
+    (child.nodeType === Node.COMMENT_NODE && child.nodeValue.trim().startsWith(METADATA_PREFIX))
+    || (child.nodeType === Node.ELEMENT_NODE && child.tagName === 'geom' && child.getAttribute('type') === 'plane')
+  ));
+}
+
+function* terrainNodes(node) {
+  for (const child of node.childNodes) {
+    if (isTerrainContainer(child)) yield* terrainNodes(child);
+    else yield child;
+  }
+}
+
 export function importFromXML(xmlText) {
   const documentNode = new DOMParser().parseFromString(xmlText, 'application/xml');
   const parserError = documentNode.querySelector('parsererror');
   if (parserError) throw new Error('Invalid XML document');
 
   const worldbody = documentNode.querySelector('mujoco > worldbody');
-  if (!worldbody) throw new Error('Missing MuJoCo worldbody');
+  const root = documentNode.documentElement;
+  const container = worldbody
+    || (root && (root.tagName === 'body' || root.tagName === 'worldbody') ? root : null);
+  if (!container) throw new Error('Missing MuJoCo worldbody');
 
   const elements = [];
   let pendingMetadata = null;
-  for (const node of worldbody.childNodes) {
+  let geomsToSkip = 0;
+  for (const node of terrainNodes(container)) {
     if (node.nodeType === Node.COMMENT_NODE) {
       const comment = node.nodeValue.trim();
       if (comment.startsWith(METADATA_PREFIX)) {
+        geomsToSkip = 0;
         try {
           pendingMetadata = JSON.parse(decodeURIComponent(comment.slice(METADATA_PREFIX.length)));
         } catch {
@@ -146,12 +168,24 @@ export function importFromXML(xmlText) {
       continue;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const isTerrainGeom = node.tagName === 'geom' && node.getAttribute('type') !== 'plane';
+    if (geomsToSkip > 0 && isTerrainGeom) {
+      geomsToSkip -= 1;
+      continue;
+    }
     const metadataElement = pendingMetadata?.version === 1 ? pendingMetadata.element : null;
-    const element = node.tagName === 'body'
-      ? metadataElement || inferLegacyElement(node)
-      : node.tagName === 'geom' && node.getAttribute('type') !== 'plane'
-        ? inferFlatGeom(node)
-        : null;
+    let element = null;
+    if (node.tagName === 'body') {
+      element = metadataElement || inferLegacyElement(node);
+    } else if (isTerrainGeom) {
+      if (metadataElement) {
+        element = metadataElement;
+        const geomCount = Math.round(Number(pendingMetadata.geomCount));
+        geomsToSkip = Number.isFinite(geomCount) && geomCount > 1 ? geomCount - 1 : 0;
+      } else {
+        element = inferFlatGeom(node);
+      }
+    }
     if (element) elements.push(element);
     pendingMetadata = null;
   }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { BoxSelect, Copy, Dices, Pipette, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
+import { Copy, Dices, Pipette, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { getPreset } from '../data/presets';
 import useSceneStore from '../store/useSceneStore';
 import { makeUniqueXmlName, sanitizeXmlNameDraft } from '../utils/xmlNames.js';
 import { localize, translate } from '../i18n';
 import { ROTATION_SNAP_DEGREES, TRANSLATION_SNAP } from '../editorConfig';
+import { findFacingGap } from '../utils/gap.js';
 import { randomTerrainColor } from '../utils/terrainColors.js';
 
 const AXES = ['X', 'Y', 'Z'];
@@ -69,10 +70,10 @@ function NumericInput({ value, onChange, step = 0.1, min, max, integer = false, 
   };
 
   return (
-    <label className={axis ? 'axis-input' : undefined}>
+    <label className={axis ? 'app-axis' : undefined}>
       {axis && <span>{axis}</span>}
       <input
-        className="number-input"
+        className="app-input"
         type="text"
         inputMode={integer ? 'numeric' : 'decimal'}
         value={draft}
@@ -99,9 +100,9 @@ function NumericInput({ value, onChange, step = 0.1, min, max, integer = false, 
 
 function VectorInput({ label, hint, value, onChange, step = 0.1, min, disabledIndices = [] }) {
   return (
-    <div className="field">
-      <div className="field-label"><span>{label}</span>{hint && <code>{hint}</code>}</div>
-      <div className="vector-row">
+    <div className="app-field">
+      <div className="app-label"><span>{label}</span>{hint && <code>{hint}</code>}</div>
+      <div className="app-vector">
         {AXES.map((axis, index) => (
           <NumericInput
             key={axis}
@@ -124,8 +125,8 @@ function VectorInput({ label, hint, value, onChange, step = 0.1, min, disabledIn
 
 function ParameterInput({ label, unit = 'M', value, onChange, min = 0.01, max, step = 0.1, integer = false }) {
   return (
-    <div className="field">
-      <div className="field-label"><span>{label}</span>{unit && <code>{unit}</code>}</div>
+    <div className="app-field">
+      <div className="app-label"><span>{label}</span>{unit && <code>{unit}</code>}</div>
       <NumericInput
         value={value}
         step={step}
@@ -141,25 +142,30 @@ function ParameterInput({ label, unit = 'M', value, onChange, min = 0.01, max, s
 function PropertiesPanel() {
   const elements = useSceneStore((state) => state.elements);
   const selectedId = useSceneStore((state) => state.selectedId);
+  const selectedIds = useSceneStore((state) => state.selectedIds);
+  const setPairGap = useSceneStore((state) => state.setPairGap);
   const updateElement = useSceneStore((state) => state.updateElement);
   const removeElement = useSceneStore((state) => state.removeElement);
   const duplicateElement = useSceneStore((state) => state.duplicateElement);
   const rotateElement90 = useSceneStore((state) => state.rotateElement90);
+  const setSelectedElementsColor = useSceneStore((state) => state.setSelectedElementsColor);
   const colorPickTargetId = useSceneStore((state) => state.colorPickTargetId);
   const startColorPicking = useSceneStore((state) => state.startColorPicking);
   const cancelColorPicking = useSceneStore((state) => state.cancelColorPicking);
   const language = useSceneStore((state) => state.language);
   const t = (key, variables) => translate(language, key, variables);
   const element = elements.find((item) => item.id === selectedId);
+  const anchor = selectedIds.length === 2 ? elements.find((item) => item.id === selectedIds[0]) : null;
+  const mover = selectedIds.length === 2 ? elements.find((item) => item.id === selectedIds[1]) : null;
+  const gap = anchor && mover ? findFacingGap(anchor, mover) : null;
 
   if (!element) {
     return (
-      <aside className="panel properties">
-        <div className="panel-header"><h2 className="panel-title">{t('inspector')}</h2></div>
-        <div className="property-empty">
-          <BoxSelect size={31} strokeWidth={1.25} />
+      <aside className="app-inspector">
+        <div className="ui-pane-heading"><h3>{t('inspector')}</h3></div>
+        <div className="app-empty">
           <strong>{t('noSelection')}</strong>
-          <p>{t('noSelectionHint')}</p>
+          <p className="ui-hint">{t('noSelectionHint')}</p>
         </div>
       </aside>
     );
@@ -175,15 +181,32 @@ function PropertiesPanel() {
   };
 
   return (
-    <aside className="panel properties">
-      <div className="panel-header">
-        <h2 className="panel-title">{t('inspector')}</h2>
+    <aside className="app-inspector">
+      <div className="ui-pane-heading">
+        <h3>{t('inspector')}</h3>
       </div>
-      <section className="section">
-        <div className="field">
-          <div className="field-label"><span>{t('geomName')}</span><code>MJCF</code></div>
+      {gap && (
+        <section className="app-section">
+          <div className="app-field">
+            <div className="app-label">
+              <span>{t('gap')}</span>
+              <code>{gap.axis === 0 ? 'X' : 'Y'}</code>
+            </div>
+            <NumericInput
+              value={gap.gap}
+              min={0}
+              step={0.05}
+              onChange={(next) => setPairGap(anchor.id, mover.id, gap.axis, next)}
+            />
+            <p className="ui-hint app-gap-note">{t('gapHint')}</p>
+          </div>
+        </section>
+      )}
+      <section className="app-section">
+        <div className="app-field">
+          <div className="app-label"><span>{t('geomName')}</span><code>MJCF</code></div>
           <input
-            className="text-input"
+            className="app-input app-input--text"
             value={element.name}
             maxLength={64}
             spellCheck={false}
@@ -195,23 +218,22 @@ function PropertiesPanel() {
             }}
           />
         </div>
-        <div className="type-chip">
-          <span className="type-chip-icon"><Icon size={14} /></span>
+        <div className="app-type">
+          <Icon size={14} strokeWidth={1.75} />
           {localize(preset.label, language)}
         </div>
       </section>
-      <section className="section">
-        <p className="section-label">{t('transform')}</p>
-        <label className="ground-lock">
+      <section className="app-section">
+        <p className="ui-kicker">{t('transform')}</p>
+        <label className="ui-check app-lock">
           <input
             type="checkbox"
             checked={element.groundLocked}
             onChange={(event) => patch('groundLocked', event.target.checked)}
           />
-          <span className="ground-lock-box" />
           <span>
             <strong>{t('groundLock')}</strong>
-            <small>{t('groundLockHint')}</small>
+            <span className="ui-hint">{t('groundLockHint')}</span>
           </span>
         </label>
         <VectorInput
@@ -229,14 +251,18 @@ function PropertiesPanel() {
           step={ROTATION_SNAP_DEGREES}
           onChange={(value) => patch('rotation', value)}
         />
-        <div className="quick-rotate-row">
+        <div className="app-split">
           <button
+            type="button"
+            className="ui-button ui-button--secondary"
             onClick={() => rotateElement90(element.id, 1)}
             title={`${t('rotateLeft90')} (Shift+[)`}
           >
             <RotateCcw size={14} /> {t('rotateLeft90')}
           </button>
           <button
+            type="button"
+            className="ui-button ui-button--secondary"
             onClick={() => rotateElement90(element.id, -1)}
             title={`${t('rotateRight90')} (Shift+])`}
           >
@@ -244,8 +270,8 @@ function PropertiesPanel() {
           </button>
         </div>
       </section>
-      <section className="section">
-        <p className="section-label">{t('geometryParameters')}</p>
+      <section className="app-section">
+        <p className="ui-kicker">{t('geometryParameters')}</p>
         {preset.parameters.map((parameter) => (
           <ParameterInput
             key={parameter.key}
@@ -255,47 +281,52 @@ function PropertiesPanel() {
             onChange={(next) => updateParam(parameter.key, next)}
           />
         ))}
-        <div className="field" style={{ marginBottom: 0 }}>
-          <div className="field-label"><span>{t('displayColor')}</span></div>
-          <div className="color-row">
-            <div className="color-control">
+        <div className="app-field">
+          <div className="app-label"><span>{t('displayColor')}</span></div>
+          <div className="app-color">
+            <label className="app-color-swatch">
               <input
                 type="color"
                 value={element.color}
                 onFocus={() => useSceneStore.getState().beginHistoryTransaction()}
                 onBlur={() => useSceneStore.getState().endHistoryTransaction()}
-                onChange={(event) => patch('color', event.target.value)}
+                onChange={(event) => setSelectedElementsColor(event.target.value)}
+                aria-label={t('displayColor')}
               />
               <code>{element.color.toUpperCase()}</code>
+            </label>
+            <div className="app-color-actions">
+              <button
+                type="button"
+                className="ui-button ui-button--secondary"
+                onClick={() => setSelectedElementsColor(randomTerrainColor(element.color))}
+                title={t('randomColor')}
+                aria-label={t('randomColor')}
+              >
+                <Dices size={14} /> {t('randomColor')}
+              </button>
+              <button
+                type="button"
+                className={`ui-button ui-button--secondary${colorPickTargetId === element.id ? ' is-active' : ''}`}
+                disabled={elements.length < 2}
+                onClick={() => {
+                  if (colorPickTargetId === element.id) cancelColorPicking();
+                  else startColorPicking(element.id);
+                }}
+                title={colorPickTargetId === element.id ? t('cancelColorPick') : t('pickColorHint')}
+                aria-pressed={colorPickTargetId === element.id}
+              >
+                <Pipette size={14} /> {t('pickColor')}
+              </button>
             </div>
-            <button
-              className="random-color-btn"
-              onClick={() => patch('color', randomTerrainColor(element.color))}
-              title={t('randomColor')}
-              aria-label={t('randomColor')}
-            >
-              <Dices size={15} /> {t('randomColor')}
-            </button>
-            <button
-              className={`random-color-btn ${colorPickTargetId === element.id ? 'active' : ''}`}
-              disabled={elements.length < 2}
-              onClick={() => {
-                if (colorPickTargetId === element.id) cancelColorPicking();
-                else startColorPicking(element.id);
-              }}
-              title={colorPickTargetId === element.id ? t('cancelColorPick') : t('pickColorHint')}
-              aria-pressed={colorPickTargetId === element.id}
-            >
-              <Pipette size={15} /> {t('pickColor')}
-            </button>
           </div>
         </div>
       </section>
-      <section className="section">
-        <button className="secondary-btn" onClick={() => duplicateElement(element.id)}>
+      <section className="app-section app-actions">
+        <button type="button" className="ui-button ui-button--secondary" onClick={() => duplicateElement(element.id)}>
           <Copy size={14} /> {t('duplicateElement')}
         </button>
-        <button className="danger-btn" onClick={() => removeElement(element.id)}>
+        <button type="button" className="ui-button ui-button--ghost" onClick={() => removeElement(element.id)}>
           <Trash2 size={14} /> {t('deleteElement')}
         </button>
       </section>

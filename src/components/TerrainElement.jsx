@@ -2,13 +2,14 @@ import { forwardRef } from 'react';
 import { Edges } from '@react-three/drei';
 import { getPreset } from '../data/presets';
 import useSceneStore from '../store/useSceneStore';
+import { paletteFor } from '../../ui/scenePalette.js';
 
 const TerrainElement = forwardRef(function TerrainElement({ element, selected = false }, ref) {
   const selectElement = useSceneStore((state) => state.selectElement);
   const colorPickTargetId = useSceneStore((state) => state.colorPickTargetId);
   const applyColorFromElement = useSceneStore((state) => state.applyColorFromElement);
   const theme = useSceneStore((state) => state.theme);
-  const dark = theme === 'dark';
+  const palette = paletteFor(theme);
   const preset = getPreset(element.type);
   if (!preset) return null;
 
@@ -37,15 +38,13 @@ const TerrainElement = forwardRef(function TerrainElement({ element, selected = 
           )}
           <meshStandardMaterial
             color={element.color}
-            emissive={selected ? (dark ? '#60a5fa' : '#2563eb') : '#000000'}
-            emissiveIntensity={selected ? 0.12 : 0}
             roughness={0.72}
             metalness={0.04}
           />
           <Edges
             threshold={15}
-            color={selected ? (dark ? '#bfdbfe' : '#123f9c') : (dark ? '#64748b' : '#6f8194')}
-            opacity={selected ? 1 : 0.42}
+            color={selected ? palette.edgeSelected : palette.edge}
+            opacity={selected ? 1 : 0.55}
             transparent
           />
         </mesh>

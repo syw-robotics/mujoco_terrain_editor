@@ -5,8 +5,10 @@ import * as THREE from 'three';
 import GroundPlane from './GroundPlane';
 import TerrainElement from './TerrainElement';
 import TransformGizmo from './TransformGizmo';
+import GapCallout from './GapCallout';
 import useSceneStore from '../store/useSceneStore';
 import { translate } from '../i18n';
+import { paletteFor } from '../../ui/scenePalette.js';
 
 function Scene({ showOriginAxes }) {
   const elements = useSceneStore((state) => state.elements);
@@ -17,13 +19,14 @@ function Scene({ showOriginAxes }) {
     .filter(Boolean);
   const theme = useSceneStore((state) => state.theme);
   const dark = theme === 'dark';
+  const palette = paletteFor(theme);
 
   return (
     <>
-      <color attach="background" args={[dark ? '#08111f' : '#e9f0f7']} />
-      <fog attach="fog" args={[dark ? '#08111f' : '#e9f0f7', 19, 42]} />
+      <color attach="background" args={[palette.background]} />
+      <fog attach="fog" args={[palette.background, 19, 42]} />
       <ambientLight intensity={dark ? 0.7 : 1.05} />
-      <hemisphereLight args={[dark ? '#c9dcff' : '#ffffff', dark ? '#101827' : '#b8c5d3', dark ? 0.7 : 1.1]} />
+      <hemisphereLight args={[palette.sky, palette.hemiGround, dark ? 0.7 : 1.1]} />
       <directionalLight
         position={[-7, -9, 14]}
         intensity={dark ? 2.2 : 2.6}
@@ -42,6 +45,9 @@ function Scene({ showOriginAxes }) {
       {selectedElements.length > 0 && (
         <TransformGizmo key={selectedIds.join(':')} elements={selectedElements} />
       )}
+      {selectedElements.length === 2 && (
+        <GapCallout anchor={selectedElements[0]} mover={selectedElements[1]} />
+      )}
       <OrbitControls
         makeDefault
         target={[0, 0, 0.5]}
@@ -54,7 +60,7 @@ function Scene({ showOriginAxes }) {
           hideNegativeAxes
           scale={40}
           axisColors={['#f06460', '#6fc66f', '#638fe3']}
-          labelColor={dark ? 'white' : '#172033'}
+          labelColor={palette.label}
         />
       </GizmoHelper>
     </>
@@ -120,7 +126,7 @@ function Viewport() {
   return (
     <section
       ref={containerRef}
-      className={`viewport ${dragActive ? 'drag-active' : ''} ${colorPickTargetId ? 'color-picking' : ''}`}
+      className={`app-viewport${dragActive ? ' is-drag' : ''}${colorPickTargetId ? ' is-picking' : ''}`}
       data-drop-label={translate(language, 'dropTerrain')}
       onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }}
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }}
@@ -143,31 +149,28 @@ function Viewport() {
         <Suspense fallback={null}><Scene showOriginAxes={!showShortcutGuide} /></Suspense>
       </Canvas>
       {colorPickTargetId && (
-        <div className="color-pick-hint" role="status">
-          <span className="color-pick-dot" />
+        <div className="app-pick ui-panel" role="status">
+          <span className="app-pick-dot" />
           {t('pickColorHint')}
-          <kbd>Esc</kbd>
+          <kbd className="app-kbd">Esc</kbd>
         </div>
       )}
       {showShortcutGuide && (
-        <div className="shortcut-guide" role="status">
-          <div className="shortcut-guide-card">
-            <div className="shortcut-guide-heading">
-              <strong>{t('shortcutGuideTitle')}</strong>
-            </div>
-            <div className="shortcut-guide-grid">
-              {shortcuts.map(([keys, label]) => (
-                <div className="shortcut-guide-item" key={keys}>
-                  <kbd>{keys}</kbd>
-                  <span>{label}</span>
-                </div>
-              ))}
-            </div>
+        <div className="app-shortcuts ui-panel" role="status">
+          <p className="ui-kicker">{t('shortcutGuideTitle')}</p>
+          <div className="app-shortcut-grid">
+            {shortcuts.map(([keys, label]) => (
+              <div className="app-shortcut" key={keys}>
+                <kbd className="app-kbd">{keys}</kbd>
+                <span>{label}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
-      <div className="viewport-badge">
-        Z-UP · RIGHT-HANDED · GRID 1.0 M &nbsp; <span className="axis-key"><b>X</b> <b>Y</b> <b>Z</b></span>
+      <div className="app-badge">
+        Z-UP · RIGHT-HANDED · GRID 1.0 M
+        <span className="app-axis-key"><b>X</b><b>Y</b><b>Z</b></span>
       </div>
     </section>
   );

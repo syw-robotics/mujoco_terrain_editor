@@ -20,40 +20,45 @@ function Sidebar() {
   };
 
   return (
-    <aside className="panel sidebar">
-      <div className="panel-header">
-        <h2 className="panel-title">{t('terrainComponents')}</h2>
+    <aside className="app-sidebar">
+      <div className="ui-pane-heading">
+        <h3>{t('terrainComponents')}</h3>
       </div>
-      <section className="section">
-        <p className="section-label">{t('basicGeometry')}</p>
-        <div className="preset-grid">
+      <section className="app-section">
+        <p className="ui-kicker">{t('basicGeometry')}</p>
+        <div className="app-preset-grid">
           {PRESETS.map(({ type, label, Icon, getSummary, defaultParams }) => (
             <div
-              className="preset-card"
+              className="app-preset"
               draggable
               key={type}
               onDragStart={(event) => handleDragStart(event, type)}
               onDoubleClick={() => useSceneStore.getState().addElement(type)}
               title={t('addPresetTitle')}
             >
-              <div className="preset-icon"><Icon size={23} strokeWidth={1.4} /></div>
-              <div className="preset-name">{localize(label, language)}</div>
-              <div className="preset-size">{getSummary(defaultParams, language)}</div>
+              <div className="app-preset-icon"><Icon size={18} strokeWidth={1.5} /></div>
+              <div className="app-preset-name">{localize(label, language)}</div>
+              <div className="app-preset-meta">{getSummary(defaultParams, language)}</div>
             </div>
           ))}
         </div>
-        <p className="hint">{t('addPresetHint')}</p>
+        <p className="ui-hint app-note">{t('addPresetHint')}</p>
       </section>
-      <section className="section" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <p className="section-label">{t('sceneHierarchy')} · {elements.length}</p>
-        <div className="scene-list">
-          {elements.length === 0 && <div className="empty-list">{t('emptyScene')}</div>}
+      <section className="app-section app-scene-section">
+        <div className="app-section-title">
+          <p className="ui-kicker">{t('sceneHierarchy')}</p>
+          <span className="ui-mono app-count">{elements.length}</span>
+        </div>
+        <div className="app-scene-list">
+          {elements.length === 0 && <p className="ui-hint">{t('emptyScene')}</p>}
           {elements.map((element) => {
             const preset = getPreset(element.type);
             const Icon = preset?.Icon || MousePointer2;
+            const selected = selectedIds.includes(element.id);
             return (
               <button
-                className={`scene-item ${selectedIds.includes(element.id) ? 'active' : ''} ${selectedId === element.id ? 'primary' : ''}`}
+                type="button"
+                className={`app-scene-item${selected ? ' is-selected' : ''}${selectedId === element.id ? ' is-primary' : ''}`}
                 key={element.id}
                 onClick={(event) => {
                   if (colorPickTargetId) applyColorFromElement(element.id);

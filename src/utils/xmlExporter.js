@@ -25,10 +25,31 @@ function hexToRgba(hex) {
   return [1, 3, 5].map((offset) => round(parseInt(safe.slice(offset, offset + 2), 16) / 255)).join(' ') + ' 1';
 }
 
+function editorMetadata(element, geomCount) {
+  // MuJoCo ignores comments, so the simulation still sees flat world geoms.
+  // Hyphens are escaped because an XML comment cannot contain "--".
+  const payload = encodeURIComponent(JSON.stringify({
+    version: 1,
+    geomCount,
+    element: {
+      type: element.type,
+      name: element.name,
+      position: element.position,
+      rotation: element.rotation,
+      scale: element.scale,
+      groundLocked: element.groundLocked,
+      color: element.color,
+      params: element.params,
+    },
+  })).replaceAll('-', '%2D');
+  return `    <!-- MTE_DATA ${payload} -->`;
+}
+
 function elementGeoms(element, elementIndex) {
   const preset = getPreset(element.type);
   if (!preset) return '';
   const geometries = preset.toGeometries(element.params);
+  if (!geometries.length) return '';
   const elementNumber = String(elementIndex + 1).padStart(3, '0');
   const namePrefix = sanitizeXmlName(element.name, `${preset.xmlName}_${elementNumber}`);
   const elementQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
@@ -65,7 +86,7 @@ function elementGeoms(element, elementIndex) {
       condim: '3',
     })}/>`;
   }).join('\n');
-  return geoms;
+  return `${editorMetadata(element, geometries.length)}\n${geoms}`;
 }
 
 export function exportToXML(elements) {

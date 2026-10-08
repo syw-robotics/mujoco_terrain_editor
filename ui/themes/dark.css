@@ -1,0 +1,16 @@
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-ink: #ecebe4;
+  --ui-ink-hover: #d4d2c8;
+  --ui-on-ink: #14130f;
+  --ui-muted: #9c9a90;
+  --ui-fade: #6e6c64;
+  --ui-focus: #9c9a90;
+  --ui-line: #3a3933;
+  --ui-line-strong: #5c5a52;
+  --ui-soft: #1a1914;
+  --ui-soft-hover: #24231d;
+  --ui-page: #14130f;
+  --ui-panel: #1e1d18;
+  --ui-canvas: #18170f;
+}

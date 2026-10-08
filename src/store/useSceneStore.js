@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { getPreset } from '../data/presets.js';
 import { getGroundOffset } from '../utils/grounding.js';
+import { measureAxis } from '../utils/gap.js';
 import { makeUniqueXmlName, sanitizeXmlName } from '../utils/xmlNames.js';
 import { snapToStep, TRANSLATION_SNAP } from '../editorConfig.js';
 import { terrainColorForIndex } from '../utils/terrainColors.js';
@@ -234,6 +235,26 @@ const useSceneStore = create((set, get) => ({
       transformMode: 'translate',
     };
   }),
+  setPairGap: (anchorId, moverId, axis, gap) => set((state) => {
+    if (axis !== 0 && axis !== 1) return state;
+    const anchor = state.elements.find((element) => element.id === anchorId);
+    const mover = state.elements.find((element) => element.id === moverId);
+    if (!anchor || !mover) return state;
+    const nextGap = Math.max(0, Number(gap));
+    if (!Number.isFinite(nextGap)) return state;
+    const measured = measureAxis(anchor, mover, axis);
+    const delta = measured.moverSign * (nextGap - measured.gap);
+    if (Math.abs(delta) < 1e-8) return state;
+    const position = [...mover.position];
+    position[axis] += delta;
+    const next = { ...mover, position };
+    if (next.groundLocked) {
+      next.position = [position[0], position[1], getGroundOffset(next)];
+    }
+    return recordSceneChange(state, {
+      elements: state.elements.map((element) => (element.id === mover.id ? next : element)),
+    });
+  }),
   moveElements: (ids, delta) => set((state) => {
     const moving = new Set(ids);
     const [dx, dy, dz] = validVector(delta, [0, 0, 0]);
@@ -250,6 +271,22 @@ const useSceneStore = create((set, get) => ({
       )),
     });
   }),
+  setSelectedElementsColor: (color) => set((state) => {
+    const nextColor = String(color || '').toLowerCase();
+    if (!/^#[0-9a-f]{6}$/.test(nextColor) || !state.selectedId) return state;
+    const targetIds = new Set(
+      state.selectedIds.includes(state.selectedId) ? state.selectedIds : [state.selectedId],
+    );
+    const needsChange = state.elements.some((element) => (
+      targetIds.has(element.id) && element.color !== nextColor
+    ));
+    if (!needsChange) return state;
+    return recordSceneChange(state, {
+      elements: state.elements.map((element) => (
+        targetIds.has(element.id) ? { ...element, color: nextColor } : element
+      )),
+    });
+  }),
   startColorPicking: (targetId) => {
     if (get().elements.some((element) => element.id === targetId)) {
       set({ colorPickTargetId: targetId });
@@ -257,14 +294,19 @@ const useSceneStore = create((set, get) => ({
   },
   cancelColorPicking: () => set({ colorPickTargetId: null }),
   applyColorFromElement: (sourceId) => set((state) => {
-    const target = state.elements.find((element) => element.id === state.colorPickTargetId);
     const source = state.elements.find((element) => element.id === sourceId);
-    if (!target || !source || target.id === source.id || target.color === source.color) {
-      return { colorPickTargetId: null };
-    }
+    if (!source || !state.colorPickTargetId) return { colorPickTargetId: null };
+    const targetIds = new Set(
+      state.selectedIds.includes(state.colorPickTargetId) ? state.selectedIds : [state.colorPickTargetId],
+    );
+    targetIds.delete(sourceId);
+    const needsChange = state.elements.some((element) => (
+      targetIds.has(element.id) && element.color !== source.color
+    ));
+    if (!needsChange) return { colorPickTargetId: null };
     return recordSceneChange(state, {
       elements: state.elements.map((element) => (
-        element.id === target.id ? { ...element, color: source.color } : element
+        targetIds.has(element.id) ? { ...element, color: source.color } : element
       )),
       colorPickTargetId: null,
     });

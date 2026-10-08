@@ -1,0 +1,24 @@
+/* Structural tokens shared by every theme. Color values live in ui/themes/. */
+
+:root {
+  --ui-font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ui-font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 6px;
+  --ui-radius-lg: 8px;
+  --ui-space-1: 8px;
+  --ui-space-2: 16px;
+  --ui-space-3: 24px;
+  --ui-space-4: 32px;
+  --ui-space-5: 48px;
+  --ui-duration: 150ms;
+}
+
+/*
+Themes must define:
+--ui-ink --ui-ink-hover --ui-on-ink
+--ui-muted --ui-fade --ui-focus
+--ui-line --ui-line-strong
+--ui-soft --ui-soft-hover
+--ui-page --ui-panel --ui-canvas
+*/

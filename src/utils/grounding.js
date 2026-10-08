@@ -11,21 +11,15 @@ const BOX_CORNER_SIGNS = [-1, 1].flatMap((x) =>
   [-1, 1].flatMap((y) => [-1, 1].map((z) => [x, y, z])),
 );
 
-/**
- * Compute the element origin height required to place its transformed AABB on Z=0.
- * Presets can contain several rotated boxes, so using half of a declared height is
- * insufficient for ramps, stairs, or freely rotated elements.
- */
-export function getGroundOffset(element) {
+function forEachLocalCorner(element, visit) {
   const preset = getPreset(element.type);
-  if (!preset) return element.position?.[2] || 0;
+  if (!preset) return false;
 
   const geometries = preset.toGeometries(element.params);
   const scale = element.scale || [1, 1, 1];
   const rotation = element.rotation || [0, 0, 0];
   elementEuler.set(...rotation.map((degree) => degree * Math.PI / 180));
   elementQuaternion.setFromEuler(elementEuler);
-  let minimumZ = Infinity;
 
   for (const geometry of geometries) {
     childPosition.fromArray(geometry.position);
@@ -53,9 +47,37 @@ export function getGroundOffset(element) {
       corner.add(childPosition);
       corner.set(corner.x * scale[0], corner.y * scale[1], corner.z * scale[2]);
       corner.applyQuaternion(elementQuaternion);
-      minimumZ = Math.min(minimumZ, corner.z);
+      visit(corner);
     }
   }
+  return true;
+}
 
+/**
+ * Compute the element origin height required to place its transformed AABB on Z=0.
+ * Presets can contain several rotated boxes, so using half of a declared height is
+ * insufficient for ramps, stairs, or freely rotated elements.
+ */
+export function getGroundOffset(element) {
+  let minimumZ = Infinity;
+  const found = forEachLocalCorner(element, (point) => {
+    minimumZ = Math.min(minimumZ, point.z);
+  });
+  if (!found || !Number.isFinite(minimumZ)) return element.position?.[2] || 0;
   return Number((-minimumZ).toFixed(6));
+}
+
+export function getWorldBounds(element) {
+  const position = element.position || [0, 0, 0];
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  const found = forEachLocalCorner(element, (point) => {
+    for (let axis = 0; axis < 3; axis += 1) {
+      const value = point.getComponent(axis) + position[axis];
+      min[axis] = Math.min(min[axis], value);
+      max[axis] = Math.max(max[axis], value);
+    }
+  });
+  if (!found) return { min: [...position], max: [...position] };
+  return { min, max };
 }

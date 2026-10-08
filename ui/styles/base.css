@@ -1,0 +1,16 @@
+* { box-sizing: border-box; }
+html { color-scheme: inherit; }
+body {
+  margin: 0;
+  background: var(--ui-page);
+  color: var(--ui-ink);
+  font: 14px/1.6 var(--ui-font);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button, input, textarea { border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.ui-muted { color: var(--ui-muted); }
+.ui-mono { font-family: var(--ui-font-mono); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Viewport from './components/Viewport';
@@ -19,7 +19,7 @@ function App() {
   const fileDragDepthRef = useRef(0);
   const [fileDragActive, setFileDragActive] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
@@ -148,21 +148,20 @@ function App() {
   return (
     <main
       className="app-shell"
-      data-theme={theme}
       onDragEnterCapture={handleFileDragEnter}
       onDragOverCapture={handleFileDragOver}
       onDragLeaveCapture={handleFileDragLeave}
       onDropCapture={handleFileDrop}
     >
       <TopBar />
-      <div className="workspace">
+      <div className="app-workspace">
         <Sidebar />
         <Viewport />
         <PropertiesPanel />
       </div>
       {fileDragActive && (
-        <div className="xml-drop-overlay">
-          <div className="xml-drop-message">{translate(language, 'dropXml')}</div>
+        <div className="app-drop">
+          <p>{translate(language, 'dropXml')}</p>
         </div>
       )}
     </main>

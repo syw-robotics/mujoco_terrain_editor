@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, CheckCircle2, Copy, Download, Moon, Move3D, Redo2, Rotate3D, Save, Sun, Trash2, Undo2, Upload } from 'lucide-react';
+import { CheckCircle2, Copy, Download, Move3D, Redo2, Rotate3D, Save, Trash2, Undo2, Upload } from 'lucide-react';
 import useSceneStore from '../store/useSceneStore';
 import { downloadXML, saveXMLToHandle, timestampedXMLFilename } from '../utils/xmlExporter';
 import { translate } from '../i18n';
@@ -9,6 +9,15 @@ const MODES = [
   { mode: 'translate', labelKey: 'move', key: 'W', Icon: Move3D },
   { mode: 'rotate', labelKey: 'rotate', key: 'E', Icon: Rotate3D },
 ];
+
+function ThemeGlyph() {
+  return (
+    <>
+      <svg className="ui-icon" data-theme-icon="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+      <svg className="ui-icon" data-theme-icon="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></svg>
+    </>
+  );
+}
 
 function TopBar() {
   const fileInputRef = useRef(null);
@@ -106,87 +115,95 @@ function TopBar() {
 
   return (
     <>
-      <header className="topbar">
-      <div className="brand">
-        <div className="brand-mark"><Box size={15} strokeWidth={1.8} /></div>
-        <div>
-          <div className="brand-title">MuJoCo Terrain Editor</div>
+      <header className="app-bar">
+        <div className="app-brand">
+          <p className="ui-kicker">MUJOCO</p>
+          <h1>Terrain Editor</h1>
         </div>
-      </div>
-      <div className="toolbar-separator" />
-      <div className="mode-switch">
-        {MODES.map(({ mode, labelKey, key, Icon }) => (
+        <div className="ui-segment app-segment">
+          {MODES.map(({ mode, labelKey, key, Icon }) => (
+            <button
+              key={mode}
+              type="button"
+              className={`ui-segment__btn${transformMode === mode ? ' ui-segment__btn--active' : ''}`}
+              disabled={selectedCount > 1 && mode === 'rotate'}
+              onClick={() => setTransformMode(mode)}
+              title={selectedCount > 1 && mode === 'rotate' ? t('multiMoveOnly') : `${t(labelKey)} (${key})`}
+            >
+              <Icon size={14} strokeWidth={1.75} />
+              <span className="app-label-text">{t(labelKey)}</span>
+              <kbd className="app-kbd">{key}</kbd>
+            </button>
+          ))}
+        </div>
+        <div className="app-bar-actions">
+          <div className="app-icon-group">
+            <button type="button" className="ui-icon-button" disabled={!canUndo} onClick={undo} title={`${t('undo')} (Ctrl+Z)`} aria-label={t('undo')}>
+              <Undo2 size={16} strokeWidth={1.75} />
+            </button>
+            <button type="button" className="ui-icon-button" disabled={!canRedo} onClick={redo} title={`${t('redo')} (Ctrl+Shift+Z)`} aria-label={t('redo')}>
+              <Redo2 size={16} strokeWidth={1.75} />
+            </button>
+          </div>
+          <span className="app-rule" />
+          <div className="ui-segment app-segment app-segment--lang" aria-label="Language">
+            <button type="button" className={`ui-segment__btn${language === 'zh' ? ' ui-segment__btn--active' : ''}`} onClick={() => setLanguage('zh')}>中</button>
+            <button type="button" className={`ui-segment__btn${language === 'en' ? ' ui-segment__btn--active' : ''}`} onClick={() => setLanguage('en')}>EN</button>
+          </div>
           <button
-            key={mode}
-            className={`mode-btn ${transformMode === mode ? 'active' : ''}`}
-            disabled={selectedCount > 1 && mode === 'rotate'}
-            onClick={() => setTransformMode(mode)}
-            title={selectedCount > 1 && mode === 'rotate' ? t('multiMoveOnly') : `${t(labelKey)} (${key})`}
+            type="button"
+            className="ui-theme-toggle"
+            onClick={toggleTheme}
+            title={theme === 'light' ? t('darkMode') : t('lightMode')}
+            aria-label={theme === 'light' ? t('darkMode') : t('lightMode')}
           >
-            <Icon size={14} strokeWidth={1.7} />
-            <span className="mode-label">{t(labelKey)}</span>
-            <kbd>{key}</kbd>
+            <ThemeGlyph />
           </button>
-        ))}
-      </div>
-      <div className="spacer" />
-      <div className="history-controls">
-        <button className="icon-btn" disabled={!canUndo} onClick={undo} title={`${t('undo')} (Ctrl+Z)`}>
-          <Undo2 size={15} />
-        </button>
-        <button className="icon-btn" disabled={!canRedo} onClick={redo} title={`${t('redo')} (Ctrl+Shift+Z)`}>
-          <Redo2 size={15} />
-        </button>
-      </div>
-      <div className="language-switch" aria-label="Language">
-        <button className={language === 'zh' ? 'active' : ''} onClick={() => setLanguage('zh')}>中</button>
-        <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
-      </div>
-      <button
-        className="icon-btn theme-toggle"
-        onClick={toggleTheme}
-        title={theme === 'light' ? t('darkMode') : t('lightMode')}
-        aria-label={theme === 'light' ? t('darkMode') : t('lightMode')}
-      >
-        {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
-      </button>
-      <button
-        className="icon-btn"
-        disabled={!selectedId}
-        onClick={() => duplicateElement(selectedId)}
-        title={`${t('duplicate')} (Ctrl+D)`}
-        style={{ opacity: selectedId ? 1 : 0.35 }}
-      ><Copy size={15} /></button>
-      <button className="icon-btn" onClick={handleClear} title={t('clear')}><Trash2 size={15} /></button>
-      <input
-        ref={fileInputRef}
-        className="file-input"
-        type="file"
-        accept=".xml,application/xml,text/xml"
-        onChange={handleLoad}
-      />
-      <button className="load-btn" onClick={handleChooseFile} title={t('loadTitle')}>
-        <Upload size={14} strokeWidth={2.2} /> <span>{t('loadXml')}</span>
-      </button>
-      {sourceFileName && (
-        <button
-          className="save-btn"
-          disabled={!hasUnsavedChanges}
-          onClick={handleSave}
-          title={hasUnsavedChanges ? t('saveTitle', { filename: sourceFileName }) : t('savedTitle')}
-        >
-          <Save size={14} strokeWidth={2.2} /> <span>{t('saveXml')}</span>
-        </button>
-      )}
-      <button
-        className="primary-btn"
-        onClick={handleExport}
-        title={t('exportTitle')}
-      ><Download size={14} strokeWidth={2.2} /> {t('exportXml')}</button>
+          <button
+            type="button"
+            className="ui-icon-button"
+            disabled={!selectedId}
+            onClick={() => duplicateElement(selectedId)}
+            title={`${t('duplicate')} (Ctrl+D)`}
+            aria-label={t('duplicate')}
+          >
+            <Copy size={16} strokeWidth={1.75} />
+          </button>
+          <button type="button" className="ui-icon-button" onClick={handleClear} title={t('clear')} aria-label={t('clear')}>
+            <Trash2 size={16} strokeWidth={1.75} />
+          </button>
+          <input
+            ref={fileInputRef}
+            className="app-file-input"
+            type="file"
+            accept=".xml,application/xml,text/xml"
+            onChange={handleLoad}
+          />
+          <button type="button" className="ui-button ui-button--secondary" onClick={handleChooseFile} title={t('loadTitle')}>
+            <Upload size={15} strokeWidth={1.75} />
+            <span className="app-label-text">{t('loadXml')}</span>
+          </button>
+          {sourceFileName && (
+            <button
+              type="button"
+              className="ui-button ui-button--secondary"
+              disabled={!hasUnsavedChanges}
+              onClick={handleSave}
+              title={hasUnsavedChanges ? t('saveTitle', { filename: sourceFileName }) : t('savedTitle')}
+            >
+              <Save size={15} strokeWidth={1.75} />
+              <span className="app-label-text">{t('saveXml')}</span>
+            </button>
+          )}
+          <button type="button" className="ui-button" onClick={handleExport} title={t('exportTitle')}>
+            <Download size={15} strokeWidth={1.75} />
+            <span className="app-label-text">{t('exportXml')}</span>
+          </button>
+        </div>
       </header>
       {saveToast && (
-        <div className="save-toast" role="status" aria-live="polite">
-          <CheckCircle2 size={18} strokeWidth={2.2} />
+        <div className="app-toast ui-panel" role="status" aria-live="polite">
+          <CheckCircle2 size={16} strokeWidth={1.75} />
           <span>{saveToast}</span>
         </div>
       )}
